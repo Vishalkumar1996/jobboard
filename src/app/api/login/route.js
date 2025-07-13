@@ -32,17 +32,6 @@ export async function POST(req) {
     );
 
     const response = NextResponse.json(
-      { message: "Login successful" },
-      { status: 200 }
-    );
-    response.cookies.set("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60,
-      path: "/",
-    });
-
-    return NextResponse.json(
       {
         message: "Login successful",
         _id: user._id,
@@ -51,8 +40,17 @@ export async function POST(req) {
       },
       { status: 200 }
     );
+
+    response.cookies.set("token", token, {
+      httpOnly: true,
+      secure: false, 
+      maxAge: 60 * 60, 
+      path: "/",
+    });
+
+    return response; 
   } catch (error) {
+    console.error("Login error:", error);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
 }
-
