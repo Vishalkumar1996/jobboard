@@ -1,87 +1,56 @@
-"use client";
-import { useEffect, useState } from "react";
-// import api from "@/utils/axios";
-import { useRouter } from "next/navigation";
+import { cookies } from 'next/headers';
+import jwt from 'jsonwebtoken';
+import { redirect } from 'next/navigation';
+import EmployerJobList from '../../../../components/joblist/EmployerJobList';
+import EmployerHeader from '../../../../components/EmployerHeader';
 
-const EmployerDashboard = () => {
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
-  // const fetchJobs = async () => {
-  //   try {
-  //     const res = await api.get("/employer/jobs");
-  //     setJobs(res.data);
-  //     setLoading(false);
-  //   } catch (err) {
-  //     console.error("Error fetching jobs", err);
-  //     setLoading(false);
-  //   }
-  // };
+export default async function EmployerDashboard() {
+  const cookieStore = cookies();
+  const token = cookieStore.get('token')?.value;
 
-  // const deleteJob = async (jobId) => {
-  //   if (!confirm("Are you sure you want to delete this job?")) return;
+  if (!token) {
+    redirect('/login');
+  }
 
-  //   try {
-  //     await api.delete(`/employer/jobs/${jobId}`);
-  //     setJobs(jobs.filter((job) => job._id !== jobId));
-  //   } catch (err) {
-  //     console.error("Failed to delete job", err);
-  //   }
-  // };
+  let decoded;
+  try {
+    console.log("Verifying token:", token);
+    decoded = jwt.verify(token, JWT_SECRET);
+    console.log("Decoded token:", decoded);
+    if (decoded.userType !== 'employer') {
+      console.log("User type is not employer:", decoded.userType);
+      redirect('/unauthorized');
+    }
+  } catch (err) {
+    console.error("Token verification error:", err);
+    redirect('/login');
+  }
 
-  // const editJob = (jobId) => {
-  //   router.push(`/dashboard/employer/edit/${jobId}`);
-  // };
+  const cookieHeader = cookieStore.toString();
+  const res = await fetch(`${process.env.NEXTAUTH_URL}/api/employer/jobs`, {
+    cache: 'no-store',
+    headers: {
+      cookie: cookieHeader,
+    },
+    next: { revalidate: 0 },
+  });
 
-  // useEffect(() => {
-  //   fetchJobs();
-  // }, []);
+  console.log("Jobs API response status:", res.status);
+  const data = await res.json();
+  console.log("Jobs API response data:", data);
+
+  if (!res.ok) {
+    redirect('/login');
+  }
+
+  const jobs = data.jobs || [];
 
   return (
     <div className="min-h-screen bg-gray-50 p-10">
-      <h1 className="text-3xl font-bold mb-8 text-blue-700">Employer Dashboard</h1>
-
-      {loading ? (
-        <p>Loading jobs...</p>
-      ) : jobs.length === 0 ? (
-        <p className="text-gray-600">You haven’t posted any jobs yet.</p>
-      ) : (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {jobs.map((job) => (
-            <div
-              key={job._id}
-              className="bg-white p-6 rounded-xl shadow hover:shadow-lg transition"
-            >
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                {job.title}
-              </h2>
-              <p className="text-gray-600 mb-2">
-                <strong>Location:</strong> {job.location}
-              </p>
-              <p className="text-gray-600 mb-4">
-                <strong>Type:</strong> {job.jobType}
-              </p>
-              <div className="flex justify-between items-center mt-4">
-                <button
-                  onClick={() => editJob(job._id)}
-                  className="bg-blue-600 text-white px-4 py-1 rounded hover:bg-blue-700 transition"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => deleteJob(job._id)}
-                  className="bg-red-500 text-white px-4 py-1 rounded hover:bg-red-600 transition"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <EmployerHeader />
+      <EmployerJobList jobs={jobs} />
     </div>
   );
-};
-
-export default EmployerDashboard;
+}
